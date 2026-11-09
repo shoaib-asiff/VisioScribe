@@ -1,0 +1,19 @@
+repo:
+  owner: "shoaib-asiff"
+  name: "VisioScribe"
+  tracking_uri: "https://dagshub.com/shoaib-asiff/VisioScribe.mlflow"
+
+data:
+  raw_path: "data/raw/dataset.csv"
+  processed_path: "data/processed/clean_dataset.csv"
+
+train:
+  batch_size: 2
+  epochs: 1
+  learning_rate: 1.0e-5
+  weight_decay: 1.0e-4
+  model_name: "VisioScribe-Caption-Model"
+  baseline_model_name: "VisioScribe-Baseline"
+
+eval:
+  metrics: ["loss", "bleu_score", "rouge_l"]
