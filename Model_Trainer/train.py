@@ -64,3 +64,22 @@ def fetch_dataset_from_dagshub() -> pd.DataFrame:
     dataframe = dataframe.dropna(subset=["image_url", "caption"]).reset_index(drop=True)
     logger.info("Loaded %d samples from DagsHub CSV", len(dataframe))
     return dataframe
+
+class CaptionDataset(Dataset):
+
+    def __init__(self, dataframe: pd.DataFrame):
+        self.dataframe = dataframe.reset_index(drop=True)
+
+    def __len__(self) -> int:
+        return len(self.dataframe)
+
+    def _load_image(self, image_ref: str) -> Image.Image:
+        try:
+            if image_ref.startswith("http"):
+                resp = requests.get(image_ref, timeout=15)
+                resp.raise_for_status()
+                return Image.open(io.BytesIO(resp.content)).convert("RGB")
+            raise ValueError(f"Unsupported image reference: {image_ref}")
+        except Exception as exc:
+            logger.warning("Falling back to blank image for %s (%s)", image_ref, exc)
+            return Image.new("RGB", (224, 224), color="black")
