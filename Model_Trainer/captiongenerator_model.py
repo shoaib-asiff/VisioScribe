@@ -10,6 +10,7 @@ class CaptionGenerator:
         self.model = BlipForConditionalGeneration.from_pretrained('Salesforce/blip-image-captioning-large')
 
     def predict(self, context, image):
+        image = Image.open(image).convert('RGB')
         inputs = self.processor(images=image, return_tensors='pt')
         with torch.no_grad():
             output = self.model.generate(**inputs)
