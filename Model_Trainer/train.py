@@ -33,3 +33,34 @@ DATASET_CSV_PATH = os.getenv("DATASET_CSV_PATH", "dataset.csv")
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "https://dagshub.com/shoaib-asiff/VisioScribe.mlflow")
 MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "visioscribe-training")
 MLFLOW_RUN_NAME = os.getenv("MLFLOW_RUN_NAME", "visioscribe-blip-run")
+
+# Data utilities
+def _auth_headers() -> Dict[str, str]:
+    if not DAGSHUB_TOKEN:
+        return {}
+    return {"Authorization": f"token {DAGSHUB_TOKEN}"}
+
+def fetch_dataset_from_dagshub() -> pd.DataFrame:
+    s3_client = get_repo_bucket_client(f"{DAGSHUB_REPO_OWNER}/{DAGSHUB_REPO_NAME}")
+    try:
+        s3_client.download_file(
+            Bucket=DAGSHUB_REPO_NAME,
+            Key=DATASET_CSV_PATH,
+            Filename=DATASET_CSV_PATH
+        )
+    except ClientError as c:
+        print(f"Failed to Fetch DataSets: {c}")
+        return
+
+    if not os.path.exists(DATASET_CSV_PATH):
+        raise RuntimeError(f"Failed to fetch CSV from DagsHub")
+
+    dataframe = pd.read_csv(DATASET_CSV_PATH)
+
+    if "image_url" not in dataframe.columns or "caption" not in dataframe.columns:
+        raise ValueError("CSV must contain 'image' (or 'image_url') and 'caption' columns.")
+
+    # Drop rows with missing values
+    dataframe = dataframe.dropna(subset=["image_url", "caption"]).reset_index(drop=True)
+    logger.info("Loaded %d samples from DagsHub CSV", len(dataframe))
+    return dataframe
