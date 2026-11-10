@@ -74,11 +74,19 @@ class CaptionDataset(Dataset):
         return len(self.dataframe)
 
     def _load_image(self, image_ref: str) -> Image.Image:
+        import base64
+
         try:
+            if image_ref.startswith("data:image"):
+                _, data = image_ref.split(",", 1)
+                img_bytes = base64.b64decode(data)
+                return Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
             if image_ref.startswith("http"):
                 resp = requests.get(image_ref, timeout=15)
                 resp.raise_for_status()
                 return Image.open(io.BytesIO(resp.content)).convert("RGB")
+
             raise ValueError(f"Unsupported image reference: {image_ref}")
         except Exception as exc:
             logger.warning("Falling back to blank image for %s (%s)", image_ref, exc)
