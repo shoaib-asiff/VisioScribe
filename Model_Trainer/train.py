@@ -18,6 +18,8 @@ from captiongenerator_model import CaptionGenerator
 from dagshub import get_repo_bucket_client
 from botocore.exceptions import ClientError
 
+
+
 # Environment & logging
 load_dotenv()
 
@@ -34,11 +36,20 @@ MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "https://dagshub.com/shoa
 MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "visioscribe-training")
 MLFLOW_RUN_NAME = os.getenv("MLFLOW_RUN_NAME", "visioscribe-blip-run")
 
+# Training hyperparameters
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", 2))
+NUM_EPOCHS = int(os.getenv("NUM_EPOCHS", 1))
+LEARNING_RATE = float(os.getenv("LEARNING_RATE", 1e-5))
+WEIGHT_DECAY = float(os.getenv("WEIGHT_DECAY", 1e-4))
+NUM_WORKERS = int(os.getenv("NUM_WORKERS", 0))
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # Data utilities
 def _auth_headers() -> Dict[str, str]:
     if not DAGSHUB_TOKEN:
         return {}
     return {"Authorization": f"token {DAGSHUB_TOKEN}"}
+
 
 def fetch_dataset_from_dagshub() -> pd.DataFrame:
     s3_client = get_repo_bucket_client(f"{DAGSHUB_REPO_OWNER}/{DAGSHUB_REPO_NAME}")
@@ -65,6 +76,7 @@ def fetch_dataset_from_dagshub() -> pd.DataFrame:
     logger.info("Loaded %d samples from DagsHub CSV", len(dataframe))
     return dataframe
 
+
 class CaptionDataset(Dataset):
 
     def __init__(self, dataframe: pd.DataFrame):
@@ -87,7 +99,17 @@ class CaptionDataset(Dataset):
                 resp.raise_for_status()
                 return Image.open(io.BytesIO(resp.content)).convert("RGB")
 
+            if os.path.exists(image_ref):
+                return Image.open(image_ref).convert("RGB")
+
             raise ValueError(f"Unsupported image reference: {image_ref}")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("Falling back to blank image for %s (%s)", image_ref, exc)
             return Image.new("RGB", (224, 224), color="black")
+
+    def __getitem__(self, idx: int) -> Tuple[Image.Image, str]:
+        row = self.dataframe.iloc[idx]
+        image_col = "image" if "image" in row else "image_url"
+        return self._load_image(str(row[image_col])), str(row["caption"])
+
+
