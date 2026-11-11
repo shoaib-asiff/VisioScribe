@@ -157,3 +157,8 @@ def train_model(dataloader: DataLoader, model_name: str = os.getenv("MODEL_NAME"
             torch.nn.utils.clip_grad_norm_(caption_gen.model.parameters(), max_norm=1.0)
             optimizer.step()
             running_loss += loss.item()
+
+    artifact_path = "caption_model"
+    os.makedirs(artifact_path, exist_ok=True)
+    model_file = os.path.join(artifact_path, "model.pt")
+    torch.save(caption_gen.model.state_dict(), model_file)
