@@ -146,8 +146,12 @@ def train_model(dataloader: DataLoader, model_name: str = os.getenv("MODEL_NAME"
     for epoch in range(NUM_EPOCHS):
         caption_gen.model.train()
         for step, (images, captions) in enumerate(dataloader):
+            optimizer.zero_grad()
             inputs = caption_gen.processor(images=list(images), text=list(captions), return_tensors='pt', padding=True)
             inputs['labels'] = inputs['input_ids']
             inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
             outputs = caption_gen.model(**inputs)
             loss = outputs.loss
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(caption_gen.model.parameters(), max_norm=1.0)
+            optimizer.step()
