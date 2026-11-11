@@ -145,6 +145,7 @@ def train_model(dataloader: DataLoader, model_name: str = os.getenv("MODEL_NAME"
 
     for epoch in range(NUM_EPOCHS):
         caption_gen.model.train()
+        running_loss = 0.0
         for step, (images, captions) in enumerate(dataloader):
             optimizer.zero_grad()
             inputs = caption_gen.processor(images=list(images), text=list(captions), return_tensors='pt', padding=True)
@@ -155,3 +156,4 @@ def train_model(dataloader: DataLoader, model_name: str = os.getenv("MODEL_NAME"
             loss.backward()
             torch.nn.utils.clip_grad_norm_(caption_gen.model.parameters(), max_norm=1.0)
             optimizer.step()
+            running_loss += loss.item()
