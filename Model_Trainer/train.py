@@ -113,3 +113,24 @@ class CaptionDataset(Dataset):
         return self._load_image(str(row[image_col])), str(row["caption"])
 
 
+def build_dataloader(dataframe: pd.DataFrame) -> DataLoader:
+    dataset = CaptionDataset(dataframe)
+    if len(dataset) == 0:
+        raise ValueError("Dataset is empty; cannot build dataloader.")
+
+    return DataLoader(
+        dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        num_workers=NUM_WORKERS,
+        collate_fn=lambda batch: list(zip(*batch)),  # returns (images, captions)
+    )
+
+
+# Training hyperparameters
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", 2))
+NUM_EPOCHS = int(os.getenv("NUM_EPOCHS", 1))
+LEARNING_RATE = float(os.getenv("LEARNING_RATE", 1e-5))
+WEIGHT_DECAY = float(os.getenv("WEIGHT_DECAY", 1e-4))
+NUM_WORKERS = int(os.getenv("NUM_WORKERS", 0))
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
