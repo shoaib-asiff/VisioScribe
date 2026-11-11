@@ -134,3 +134,11 @@ LEARNING_RATE = float(os.getenv("LEARNING_RATE", 1e-5))
 WEIGHT_DECAY = float(os.getenv("WEIGHT_DECAY", 1e-4))
 NUM_WORKERS = int(os.getenv("NUM_WORKERS", 0))
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def train_model(dataloader: DataLoader, model_name: str = os.getenv("MODEL_NAME", "VisioScribe-Caption-Model"), version: str = "1.0"):
+    caption_gen = CaptionGenerator()
+    caption_gen.load_context({})
+    caption_gen.model.to(DEVICE)
+
+    optimizer = torch.optim.AdamW(caption_gen.model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(NUM_EPOCHS, 1))
