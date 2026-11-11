@@ -142,3 +142,12 @@ def train_model(dataloader: DataLoader, model_name: str = os.getenv("MODEL_NAME"
 
     optimizer = torch.optim.AdamW(caption_gen.model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(NUM_EPOCHS, 1))
+
+    for epoch in range(NUM_EPOCHS):
+        caption_gen.model.train()
+        for step, (images, captions) in enumerate(dataloader):
+            inputs = caption_gen.processor(images=list(images), text=list(captions), return_tensors='pt', padding=True)
+            inputs['labels'] = inputs['input_ids']
+            inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+            outputs = caption_gen.model(**inputs)
+            loss = outputs.loss
