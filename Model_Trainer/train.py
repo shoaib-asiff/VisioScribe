@@ -209,4 +209,6 @@ def train_model(
 def register_model_on_mlflow(run_id: str, model_name: str, artifact_uri: str, stage: str = 'Production') -> Dict[str, str]:
     client = mlflow.tracking.MlflowClient()
     model_version = client.create_model_version(name=model_name, source=artifact_uri, run_id=run_id)
+    client.transition_model_version_stage(name=model_name, version=model_version.version, stage=stage)
+    logger.info('Model registered: %s (v%s) -> %s', model_name, model_version.version, stage)
     return {'model_name': model_name, 'version': model_version.version, 'stage': stage, 'run_id': run_id}
