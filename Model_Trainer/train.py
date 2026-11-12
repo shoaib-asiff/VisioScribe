@@ -204,3 +204,9 @@ def train_model(
         logger.info("Training complete. Run ID: %s", run.info.run_id)
         return {"run_id": run.info.run_id, "model_name": model_name}
 
+
+
+def register_model_on_mlflow(run_id: str, model_name: str, artifact_uri: str, stage: str = 'Production') -> Dict[str, str]:
+    client = mlflow.tracking.MlflowClient()
+    model_version = client.create_model_version(name=model_name, source=artifact_uri, run_id=run_id)
+    return {'model_name': model_name, 'version': model_version.version, 'stage': stage, 'run_id': run_id}
