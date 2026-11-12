@@ -194,10 +194,13 @@ def train_model(
             logger.info("Epoch %d/%d - loss: %.4f", epoch + 1, NUM_EPOCHS, epoch_loss)
 
         # Persist model locally then log to MLflow
-
-        artifact_path = 'caption_model'
+        artifact_path = "caption_model"
         os.makedirs(artifact_path, exist_ok=True)
-        model_file = os.path.join(artifact_path, 'model.pt')
+        model_file = os.path.join(artifact_path, "model.pt")
         torch.save(caption_gen.model.state_dict(), model_file)
-        logger.info('Training complete. Run ID: %s', run.info.run_id)
-        return {'run_id': run.info.run_id, 'model_name': model_name}
+
+        mlflow.log_artifact(model_file, artifact_path="caption_model")
+
+        logger.info("Training complete. Run ID: %s", run.info.run_id)
+        return {"run_id": run.info.run_id, "model_name": model_name}
+
