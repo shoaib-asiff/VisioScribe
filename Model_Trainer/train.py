@@ -167,24 +167,34 @@ def train_model(
             }
         )
 
-
         for epoch in range(NUM_EPOCHS):
             caption_gen.model.train()
             running_loss = 0.0
+
             for step, (images, captions) in enumerate(dataloader):
                 optimizer.zero_grad()
-                inputs = caption_gen.processor(images=list(images), text=list(captions), return_tensors='pt', padding=True)
-                inputs['labels'] = inputs['input_ids']
+
+                inputs = caption_gen.processor(images=list(images), text=list(captions), return_tensors="pt", padding=True)
+                inputs["labels"] = inputs["input_ids"]
                 inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+
                 outputs = caption_gen.model(**inputs)
                 loss = outputs.loss
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(caption_gen.model.parameters(), max_norm=1.0)
                 optimizer.step()
+
                 running_loss += loss.item()
+                if (step + 1) % 5 == 0:
+                    mlflow.log_metric("batch_loss", running_loss / (step + 1), step=epoch * len(dataloader) + step)
+
             epoch_loss = running_loss / max(len(dataloader), 1)
+            mlflow.log_metric("epoch_loss", epoch_loss, step=epoch)
             scheduler.step()
-            logger.info('Epoch %d/%d - loss: %.4f', epoch + 1, NUM_EPOCHS, epoch_loss)
+            logger.info("Epoch %d/%d - loss: %.4f", epoch + 1, NUM_EPOCHS, epoch_loss)
+
+        # Persist model locally then log to MLflow
+
         artifact_path = 'caption_model'
         os.makedirs(artifact_path, exist_ok=True)
         model_file = os.path.join(artifact_path, 'model.pt')
