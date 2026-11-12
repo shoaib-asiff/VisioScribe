@@ -154,6 +154,20 @@ def train_model(
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(NUM_EPOCHS, 1))
 
     with mlflow.start_run(run_name=MLFLOW_RUN_NAME) as run:
+        mlflow.log_params(
+            {
+                "batch_size": BATCH_SIZE,
+                "epochs": NUM_EPOCHS,
+                "learning_rate": LEARNING_RATE,
+                "weight_decay": WEIGHT_DECAY,
+                "device": str(DEVICE),
+                "model_name": model_name,
+                "version": version,
+                "dataset_size": len(dataloader.dataset),  # type: ignore[arg-type]
+            }
+        )
+
+
         for epoch in range(NUM_EPOCHS):
             caption_gen.model.train()
             running_loss = 0.0
