@@ -113,3 +113,56 @@ class CaptionDataset(Dataset):
         return self._load_image(str(row[image_col])), str(row["caption"])
 
 
+def build_dataloader(dataframe: pd.DataFrame) -> DataLoader:
+    dataset = CaptionDataset(dataframe)
+    if len(dataset) == 0:
+        raise ValueError("Dataset is empty; cannot build dataloader.")
+
+    return DataLoader(
+        dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        num_workers=NUM_WORKERS,
+        collate_fn=lambda batch: list(zip(*batch)),  # returns (images, captions)
+    )
+
+
+# Training hyperparameters
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", 2))
+NUM_EPOCHS = int(os.getenv("NUM_EPOCHS", 1))
+LEARNING_RATE = float(os.getenv("LEARNING_RATE", 1e-5))
+WEIGHT_DECAY = float(os.getenv("WEIGHT_DECAY", 1e-4))
+NUM_WORKERS = int(os.getenv("NUM_WORKERS", 0))
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def train_model(dataloader: DataLoader, model_name: str = os.getenv("MODEL_NAME", "VisioScribe-Caption-Model"), version: str = "1.0"):
+    caption_gen = CaptionGenerator()
+    caption_gen.load_context({})
+    caption_gen.model.to(DEVICE)
+
+    optimizer = torch.optim.AdamW(caption_gen.model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(NUM_EPOCHS, 1))
+
+    for epoch in range(NUM_EPOCHS):
+        caption_gen.model.train()
+        running_loss = 0.0
+        for step, (images, captions) in enumerate(dataloader):
+            optimizer.zero_grad()
+            inputs = caption_gen.processor(images=list(images), text=list(captions), return_tensors='pt', padding=True)
+            inputs['labels'] = inputs['input_ids']
+            inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+            outputs = caption_gen.model(**inputs)
+            loss = outputs.loss
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(caption_gen.model.parameters(), max_norm=1.0)
+            optimizer.step()
+            running_loss += loss.item()
+
+    artifact_path = "caption_model"
+    os.makedirs(artifact_path, exist_ok=True)
+    model_file = os.path.join(artifact_path, "model.pt")
+    torch.save(caption_gen.model.state_dict(), model_file)
+
+        epoch_loss = running_loss / max(len(dataloader), 1)
+        scheduler.step()
+        logger.info("Epoch %d/%d - loss: %.4f", epoch + 1, NUM_EPOCHS, epoch_loss)
