@@ -127,15 +127,25 @@ def build_dataloader(dataframe: pd.DataFrame) -> DataLoader:
     )
 
 
-# Training hyperparameters
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", 2))
-NUM_EPOCHS = int(os.getenv("NUM_EPOCHS", 1))
-LEARNING_RATE = float(os.getenv("LEARNING_RATE", 1e-5))
-WEIGHT_DECAY = float(os.getenv("WEIGHT_DECAY", 1e-4))
-NUM_WORKERS = int(os.getenv("NUM_WORKERS", 0))
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# MLflow utilities
+def configure_mlflow() -> None:
+    if DAGSHUB_TOKEN and DAGSHUB_REPO_OWNER:
+        os.environ["MLFLOW_TRACKING_USERNAME"] = DAGSHUB_REPO_OWNER
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = DAGSHUB_TOKEN
 
-def train_model(dataloader: DataLoader, model_name: str = os.getenv("MODEL_NAME", "VisioScribe-Caption-Model"), version: str = "1.0"):
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+    logger.info("MLflow configured. Tracking URI: %s", MLFLOW_TRACKING_URI)
+
+
+# Training & registration
+def train_model(
+    dataloader: DataLoader,
+    model_name: str = os.getenv("MODEL_NAME", "VisioScribe-Caption-Model"),
+    version: str = "1.0",
+) -> Dict[str, str]:
+    configure_mlflow()
+
     caption_gen = CaptionGenerator()
     caption_gen.load_context({})
     caption_gen.model.to(DEVICE)
@@ -157,12 +167,12 @@ def train_model(dataloader: DataLoader, model_name: str = os.getenv("MODEL_NAME"
             torch.nn.utils.clip_grad_norm_(caption_gen.model.parameters(), max_norm=1.0)
             optimizer.step()
             running_loss += loss.item()
-
-    artifact_path = "caption_model"
-    os.makedirs(artifact_path, exist_ok=True)
-    model_file = os.path.join(artifact_path, "model.pt")
-    torch.save(caption_gen.model.state_dict(), model_file)
-
         epoch_loss = running_loss / max(len(dataloader), 1)
         scheduler.step()
-        logger.info("Epoch %d/%d - loss: %.4f", epoch + 1, NUM_EPOCHS, epoch_loss)
+        logger.info('Epoch %d/%d - loss: %.4f', epoch + 1, NUM_EPOCHS, epoch_loss)
+    artifact_path = 'caption_model'
+    os.makedirs(artifact_path, exist_ok=True)
+    model_file = os.path.join(artifact_path, 'model.pt')
+    torch.save(caption_gen.model.state_dict(), model_file)
+    logger.info('Training complete.')
+    return {'model_name': model_name}
