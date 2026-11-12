@@ -153,26 +153,27 @@ def train_model(
     optimizer = torch.optim.AdamW(caption_gen.model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(NUM_EPOCHS, 1))
 
-    for epoch in range(NUM_EPOCHS):
-        caption_gen.model.train()
-        running_loss = 0.0
-        for step, (images, captions) in enumerate(dataloader):
-            optimizer.zero_grad()
-            inputs = caption_gen.processor(images=list(images), text=list(captions), return_tensors='pt', padding=True)
-            inputs['labels'] = inputs['input_ids']
-            inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-            outputs = caption_gen.model(**inputs)
-            loss = outputs.loss
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(caption_gen.model.parameters(), max_norm=1.0)
-            optimizer.step()
-            running_loss += loss.item()
-        epoch_loss = running_loss / max(len(dataloader), 1)
-        scheduler.step()
-        logger.info('Epoch %d/%d - loss: %.4f', epoch + 1, NUM_EPOCHS, epoch_loss)
-    artifact_path = 'caption_model'
-    os.makedirs(artifact_path, exist_ok=True)
-    model_file = os.path.join(artifact_path, 'model.pt')
-    torch.save(caption_gen.model.state_dict(), model_file)
-    logger.info('Training complete.')
-    return {'model_name': model_name}
+    with mlflow.start_run(run_name=MLFLOW_RUN_NAME) as run:
+        for epoch in range(NUM_EPOCHS):
+            caption_gen.model.train()
+            running_loss = 0.0
+            for step, (images, captions) in enumerate(dataloader):
+                optimizer.zero_grad()
+                inputs = caption_gen.processor(images=list(images), text=list(captions), return_tensors='pt', padding=True)
+                inputs['labels'] = inputs['input_ids']
+                inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+                outputs = caption_gen.model(**inputs)
+                loss = outputs.loss
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(caption_gen.model.parameters(), max_norm=1.0)
+                optimizer.step()
+                running_loss += loss.item()
+            epoch_loss = running_loss / max(len(dataloader), 1)
+            scheduler.step()
+            logger.info('Epoch %d/%d - loss: %.4f', epoch + 1, NUM_EPOCHS, epoch_loss)
+        artifact_path = 'caption_model'
+        os.makedirs(artifact_path, exist_ok=True)
+        model_file = os.path.join(artifact_path, 'model.pt')
+        torch.save(caption_gen.model.state_dict(), model_file)
+        logger.info('Training complete. Run ID: %s', run.info.run_id)
+        return {'run_id': run.info.run_id, 'model_name': model_name}
