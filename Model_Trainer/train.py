@@ -162,3 +162,7 @@ def train_model(dataloader: DataLoader, model_name: str = os.getenv("MODEL_NAME"
     os.makedirs(artifact_path, exist_ok=True)
     model_file = os.path.join(artifact_path, "model.pt")
     torch.save(caption_gen.model.state_dict(), model_file)
+
+        epoch_loss = running_loss / max(len(dataloader), 1)
+        scheduler.step()
+        logger.info("Epoch %d/%d - loss: %.4f", epoch + 1, NUM_EPOCHS, epoch_loss)
