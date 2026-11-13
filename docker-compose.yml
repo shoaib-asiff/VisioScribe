@@ -1,0 +1,39 @@
+version: '3.9'
+services:
+  frontend:
+    image: visioscribe/frontend:v1
+    build: ./frontend
+    env_file:
+      - ./frontend/.env
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - visioscribe-network
+  backend:
+    image: visioscribe/backend:v2
+    build: ./Backend
+    env_file:
+      - ./Backend/.env
+    ports:
+      - "4000:4000"
+    depends_on:
+      - model
+    restart: unless-stopped
+    networks:
+      - visioscribe-network
+  model:
+    image: visioscribe/model:v3
+    build: ./Model/Caption-Generator-Model
+    env_file:
+      - ./Model/Caption-Generator-Model/.env
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    networks:
+      - visioscribe-network
+networks:
+  visioscribe-network:
+    driver: bridge
