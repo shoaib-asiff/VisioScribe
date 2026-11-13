@@ -250,6 +250,9 @@ def run_training_pipeline() -> Dict[str, str]:
         "stage": registration_result["stage"],
     }
 
-
 if __name__ == "__main__":
-    run_training_pipeline()
+    try:
+        summary = run_training_pipeline()
+        logger.info("Pipeline finished: %s", summary)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Training pipeline failed: %s", exc)
