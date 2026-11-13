@@ -1,0 +1,42 @@
+stages:
+  data_validation:
+    cmd: python3 src/validate_data.py --input data/raw/dataset.csv --output data/processed/clean_dataset.csv
+    deps:
+      - src/validate_data.py
+      - data/raw/dataset.csv
+    outs:
+      - data/processed/clean_dataset.csv
+
+  train_baseline:
+    cmd: python3 src/baseline_model.py --data data/processed/clean_dataset.csv --metrics metrics/baseline_metrics.json
+    deps:
+      - src/baseline_model.py
+      - data/processed/clean_dataset.csv
+    params:
+      - repo
+      - train.baseline_model_name
+    metrics:
+      - metrics/baseline_metrics.json:
+          cache: false
+
+  train_main:
+    cmd: python3 Model_Trainer/train.py
+    deps:
+      - Model_Trainer/train.py
+      - Model_Trainer/captiongenerator_model.py
+      - data/processed/clean_dataset.csv
+    params:
+      - repo
+      - train
+    outs:
+      - Model_Trainer/caption_model:
+          persist: true
+
+  evaluate:
+    cmd: python3 src/evaluate.py --data data/processed/clean_dataset.csv --output metrics/eval_metrics.json
+    deps:
+      - src/evaluate.py
+      - metrics/baseline_metrics.json
+    metrics:
+      - metrics/eval_metrics.json:
+          cache: false

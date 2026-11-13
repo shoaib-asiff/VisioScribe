@@ -228,3 +228,31 @@ def register_model_on_mlflow(run_id: str, model_name: str, artifact_uri: str, st
     return {"model_name": model_name, "version": model_version.version, "stage": stage, "run_id": run_id}
 
 
+# Orchestration helpers (for CLI/manual use; Airflow DAG will call functions)
+def run_training_pipeline() -> Dict[str, str]:
+    dataframe = fetch_dataset_from_dagshub()
+    dataloader = build_dataloader(dataframe)
+
+    # This now returns 'artifact_uri' too
+    training_result = train_model(dataloader) 
+
+    registration_result = register_model_on_mlflow(
+        run_id=training_result["run_id"],
+        model_name=training_result["model_name"],
+        artifact_uri=training_result["artifact_uri"],
+        stage=os.getenv("MLFLOW_MODEL_STAGE", "Production"),
+    )
+
+    return {
+        "run_id": training_result["run_id"],
+        "model_name": training_result["model_name"],
+        "model_version": registration_result["version"],
+        "stage": registration_result["stage"],
+    }
+
+if __name__ == "__main__":
+    try:
+        summary = run_training_pipeline()
+        logger.info("Pipeline finished: %s", summary)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Training pipeline failed: %s", exc)
