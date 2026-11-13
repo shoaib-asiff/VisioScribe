@@ -243,3 +243,33 @@ This project uses a hybrid AI pipeline combining vision-language models and LLMs
 ---
 
 ## 🧪 Future Improvements
+
+* 🔍 Improve caption accuracy using larger models
+* 🌍 Multi-language caption generation
+* 🎤 Voice-based input/output
+* 📱 Mobile app integration
+
+---
+
+
+## 📜 License
+
+This project is not licensed.
+
+---
+
+## 🙌 Acknowledgements
+
+* Open-source ML libraries
+* Cloudinary
+* MongoDB Atlas
+
+---
+
+## 👥 Authors & Team
+
+* **Shoaib Asif** (shoaibasif675@gmail.com)
+* **Abdullah Yaqoob** (abdullahyaqoob051@gmail.com)
+* **Abdul Rehman Shahid** (abdulrehman.shahid714@gmail.com)
+
+Feel free to connect or reach out for collaboration 🚀
