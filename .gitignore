@@ -23,3 +23,9 @@ caption_model/
 # DVC generated data & artifacts
 data/processed/
 metrics/
+
+caption_model/
+
+# DVC generated data & artifacts
+data/processed/
+metrics/
