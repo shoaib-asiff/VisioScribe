@@ -127,15 +127,25 @@ def build_dataloader(dataframe: pd.DataFrame) -> DataLoader:
     )
 
 
-# Training hyperparameters
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", 2))
-NUM_EPOCHS = int(os.getenv("NUM_EPOCHS", 1))
-LEARNING_RATE = float(os.getenv("LEARNING_RATE", 1e-5))
-WEIGHT_DECAY = float(os.getenv("WEIGHT_DECAY", 1e-4))
-NUM_WORKERS = int(os.getenv("NUM_WORKERS", 0))
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# MLflow utilities
+def configure_mlflow() -> None:
+    if DAGSHUB_TOKEN and DAGSHUB_REPO_OWNER:
+        os.environ["MLFLOW_TRACKING_USERNAME"] = DAGSHUB_REPO_OWNER
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = DAGSHUB_TOKEN
 
-def train_model(dataloader: DataLoader, model_name: str = os.getenv("MODEL_NAME", "VisioScribe-Caption-Model"), version: str = "1.0"):
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+    logger.info("MLflow configured. Tracking URI: %s", MLFLOW_TRACKING_URI)
+
+
+# Training & registration
+def train_model(
+    dataloader: DataLoader,
+    model_name: str = os.getenv("MODEL_NAME", "VisioScribe-Caption-Model"),
+    version: str = "1.0",
+) -> Dict[str, str]:
+    configure_mlflow()
+
     caption_gen = CaptionGenerator()
     caption_gen.load_context({})
     caption_gen.model.to(DEVICE)
@@ -143,26 +153,78 @@ def train_model(dataloader: DataLoader, model_name: str = os.getenv("MODEL_NAME"
     optimizer = torch.optim.AdamW(caption_gen.model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(NUM_EPOCHS, 1))
 
-    for epoch in range(NUM_EPOCHS):
-        caption_gen.model.train()
-        running_loss = 0.0
-        for step, (images, captions) in enumerate(dataloader):
-            optimizer.zero_grad()
-            inputs = caption_gen.processor(images=list(images), text=list(captions), return_tensors='pt', padding=True)
-            inputs['labels'] = inputs['input_ids']
-            inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-            outputs = caption_gen.model(**inputs)
-            loss = outputs.loss
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(caption_gen.model.parameters(), max_norm=1.0)
-            optimizer.step()
-            running_loss += loss.item()
+    with mlflow.start_run(run_name=MLFLOW_RUN_NAME) as run:
+        mlflow.log_params(
+            {
+                "batch_size": BATCH_SIZE,
+                "epochs": NUM_EPOCHS,
+                "learning_rate": LEARNING_RATE,
+                "weight_decay": WEIGHT_DECAY,
+                "device": str(DEVICE),
+                "model_name": model_name,
+                "version": version,
+                "dataset_size": len(dataloader.dataset),  # type: ignore[arg-type]
+            }
+        )
 
-    artifact_path = "caption_model"
-    os.makedirs(artifact_path, exist_ok=True)
-    model_file = os.path.join(artifact_path, "model.pt")
-    torch.save(caption_gen.model.state_dict(), model_file)
+        for epoch in range(NUM_EPOCHS):
+            caption_gen.model.train()
+            running_loss = 0.0
 
-        epoch_loss = running_loss / max(len(dataloader), 1)
-        scheduler.step()
-        logger.info("Epoch %d/%d - loss: %.4f", epoch + 1, NUM_EPOCHS, epoch_loss)
+            for step, (images, captions) in enumerate(dataloader):
+                optimizer.zero_grad()
+
+                inputs = caption_gen.processor(images=list(images), text=list(captions), return_tensors="pt", padding=True)
+                inputs["labels"] = inputs["input_ids"]
+                inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+
+                outputs = caption_gen.model(**inputs)
+                loss = outputs.loss
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(caption_gen.model.parameters(), max_norm=1.0)
+                optimizer.step()
+
+                running_loss += loss.item()
+                if (step + 1) % 5 == 0:
+                    mlflow.log_metric("batch_loss", running_loss / (step + 1), step=epoch * len(dataloader) + step)
+
+            epoch_loss = running_loss / max(len(dataloader), 1)
+            mlflow.log_metric("epoch_loss", epoch_loss, step=epoch)
+            scheduler.step()
+            logger.info("Epoch %d/%d - loss: %.4f", epoch + 1, NUM_EPOCHS, epoch_loss)
+
+        # Persist model locally then log to MLflow
+        artifact_path = "caption_model"
+        os.makedirs(artifact_path, exist_ok=True)
+        model_file = os.path.join(artifact_path, "model.pt")
+        torch.save(caption_gen.model.state_dict(), model_file)
+
+        mlflow.log_artifact(model_file, artifact_path="caption_model")
+
+        logger.info("Training complete. Run ID: %s", run.info.run_id)
+        return {"run_id": run.info.run_id, "model_name": model_name}
+
+
+def register_model_on_mlflow(run_id: str, model_name: str, artifact_uri: str, stage: str = "Production") -> Dict[str, str]:
+    client = mlflow.tracking.MlflowClient()
+    
+    model_version = client.create_model_version(
+        name=model_name,
+        source=artifact_uri, 
+        run_id=run_id
+    )
+    
+    client.transition_model_version_stage(
+        name=model_name,
+        version=model_version.version,
+        stage=stage
+    )
+
+    logger.info("Model registered: %s (v%s) -> %s", model_name, model_version.version, stage)
+
+    if os.path.exists(DATASET_CSV_PATH):
+        os.remove(DATASET_CSV_PATH)
+
+    return {"model_name": model_name, "version": model_version.version, "stage": stage, "run_id": run_id}
+
+
