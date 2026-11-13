@@ -151,3 +151,95 @@ BACKEND_URL=your-url/api/
 ```
 ---
 
+Create `.env` file in Model/Model_Trainer:
+```bash
+BATCH_SIZE=4
+NUM_EPOCHS=5
+LEARNING_RATE=0.0001
+
+# DagsHub Configuration
+DAGSHUB_REPO_OWNER=shoaib-asiff
+DAGSHUB_REPO_NAME=VisioScribe
+DAGSHUB_TOKEN=
+DATASET_CSV_PATH=dataset.csv
+
+# MLflow Configuration
+MLFLOW_TRACKING_URI=https://dagshub.com/shoaib-asiff/VisioScribe.mlflowhttps://dagshub.com/shoaib-asiff/VisioScribe.mlflow
+OPEN_ROUTER_API_KEY=
+MODEL_NAME=visioscribe-blip
+```
+---
+
+Create `.env` file in Model/Caption-Generator-Model:
+```bash
+PORT=
+# DagsHub Configuration
+DAGSHUB_REPO_OWNER=shoaib-asiff
+DAGSHUB_REPO_NAME=VisioScribe
+DAGSHUB_TOKEN=
+
+# MLflow Configuration
+MLFLOW_TRACKING_URI=https://dagshub.com/shoaib-asiff/VisioScribe.mlflow
+
+DATASET_CSV_PATH=dataset.csv
+
+OPEN_ROUTER_API_KEY=
+MODEL_NAME=cvisioscribe-blip
+```
+---
+
+
+
+
+## 🤖 How It Works
+
+1. User uploads an image via the frontend
+2. Image is sent to backend API
+3. Backend uploads image to Cloudinary
+4. ML model processes the image
+5. Caption is generated and returned
+6. Data is stored in MongoDB
+
+---
+
+## 📊 Model Details
+
+This project uses a hybrid AI pipeline combining vision-language models and LLMs:
+
+### 🖼️ Caption Generation Model
+
+* **BLIP (Bootstrapping Language-Image Pretraining)** for image captioning
+* Extracts visual features and generates initial captions
+
+### 🧠 LLM Enhancement Layer
+
+* **Meta LLM (via OpenRouter API)**
+
+  * Refines and improves generated captions
+  * Makes captions more human-like and context-aware
+
+### 🔄 Data Feedback & Retraining Pipeline
+
+* **NVIDIA LLM (via OpenRouter API)**
+
+  * Analyzes stored captions and user interactions
+  * Helps generate improved training data
+  * Feeds updated data into retraining pipeline
+
+### ⚙️ MLOps Integration
+
+* **Apache Airflow** is used to:
+
+  * Schedule periodic retraining jobs
+  * Automate data pipeline updates
+  * Maintain model performance over time
+
+### 🔗 LLM Gateway
+
+* Both Meta and NVIDIA LLMs are accessed through:
+
+  * **OpenRouter API** for unified LLM integration
+
+---
+
+## 🧪 Future Improvements
